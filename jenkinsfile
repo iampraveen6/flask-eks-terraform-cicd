@@ -1,6 +1,4 @@
-Here is the **same simplified file** you just received, but with the **post-build section added back** (success / failure / always blocks) so you still get the basic notifications and clean-up without the non-existent `publishTestResults` step.
 
-```groovy
 pipeline {
     agent any
 
@@ -88,4 +86,3 @@ pipeline {
         }
     }
 }
-```
