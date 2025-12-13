@@ -9,28 +9,41 @@ pipeline {
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
     
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+    }
+    
     stages {
         stage('Checkout') {
             steps {
-                echo "Checking out code..."
+                script {
+                    echo "=== Stage 1: Checking out code from GitHub ==="
+                }
                 checkout scm
+                echo "Code checkout completed"
             }
         }
         
         stage('Test') {
             steps {
-                echo "Running tests..."
+                script {
+                    echo "=== Stage 2: Running unit tests ==="
+                }
                 sh '''
                     cd app
                     python3 -m pip install --user -r requirements.txt
                     python3 -m unittest discover -s tests -v
                 '''
+                echo "Tests completed successfully"
             }
         }
         
         stage('Build & Push') {
             steps {
-                echo "Building and pushing Docker image..."
+                script {
+                    echo "=== Stage 3: Building and pushing Docker image ==="
+                }
                 sh '''
                     # Build image
                     docker build -t flask-app:${IMAGE_TAG} .
@@ -45,12 +58,15 @@ pipeline {
                     docker push ${ECR_REPO}:${IMAGE_TAG}
                     docker push ${ECR_REPO}:latest
                 '''
+                echo "Docker image built and pushed successfully"
             }
         }
         
         stage('Deploy to EKS') {
             steps {
-                echo "Deploying to EKS..."
+                script {
+                    echo "=== Stage 4: Deploying to EKS cluster ==="
+                }
                 sh '''
                     # Configure kubectl
                     aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
@@ -63,33 +79,58 @@ pipeline {
                     # Wait for rollout
                     kubectl rollout status deployment/flask-app --timeout=5m
                 '''
+                echo "Deployment to EKS completed"
             }
         }
         
         stage('Verify') {
             steps {
-                echo "Verifying deployment..."
+                script {
+                    echo "=== Stage 5: Verifying deployment ==="
+                }
                 sh '''
                     kubectl get deployments
                     kubectl get pods
                     kubectl get services
                     
                     # Get LoadBalancer URL
+                    echo "========================================="
                     echo "Application URL:"
                     kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
                     echo ""
+                    echo "========================================="
                 '''
+                echo "Verification completed successfully"
             }
         }
     }
     
     post {
         success {
-            echo "Deployment successful!"
+            echo "========================================="
+            echo "✅ DEPLOYMENT SUCCESSFUL!"
+            echo "========================================="
+            script {
+                sh '''
+                    LB_URL=$(kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "LoadBalancer URL not ready yet")
+                    echo "Application accessible at: http://${LB_URL}"
+                '''
+            }
         }
         failure {
-            echo "Deployment failed!"
-            sh 'kubectl describe deployment/flask-app || true'
+            echo "========================================="
+            echo "❌ PIPELINE FAILED!"
+            echo "========================================="
+            sh '''
+                echo "Deployment logs:"
+                kubectl describe deployment/flask-app || true
+                echo ""
+                echo "Pod logs:"
+                kubectl logs -l app=flask-app --tail=50 || true
+            '''
+        }
+        always {
+            echo "Pipeline execution completed at: ${new Date()}"
         }
     }
 }
