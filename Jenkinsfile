@@ -26,7 +26,7 @@ pipeline {
         timestamps()
         timeout(time: 30, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))   // keep last 10 builds
-        skipDefaultCheckout()                            // we explicitly checkout in stage 1
+        // skipDefaultCheckout()                            // we explicitly checkout in stage 1
     }
 
     /* ---------------  STAGES  --------------- */
