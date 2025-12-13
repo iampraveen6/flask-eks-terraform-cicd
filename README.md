@@ -416,3 +416,19 @@ If you encounter issues:
 **Cost:** ~$17 for 3 days  
 **Difficulty:** Medium  
 **Impact:** High
+
+Screenshot
+Local Validation ![Image](https://github.com/user-attachments/assets/6531cc7f-5eb9-4dee-bdbb-ccc756016e55)
+Terraform Plan ![Image](https://github.com/user-attachments/assets/e729f52d-0cb7-47b2-8c52-a55fac536a20)
+Terraform show ![Image](https://github.com/user-attachments/assets/679c8669-cfe8-4629-8e9f-22afbc1b840d)
+Terraform Output ![Image](https://github.com/user-attachments/assets/8a362991-5622-4e03-a4a2-382eea112bae)
+k8s get resource ![Image](https://github.com/user-attachments/assets/2a726e46-0c59-45d9-a30b-30f6db6a679d)
+k8s Deployment ![Image](https://github.com/user-attachments/assets/958bb12c-7758-4da9-841a-8056ac0d86f8)
+k8s log ![Image](https://github.com/user-attachments/assets/3aab4244-8fbc-41db-9285-45db5a376a3d)
+k8s describe ![Image](https://github.com/user-attachments/assets/3b18c97f-c966-4c50-b775-96fee7ddfe1a)
+k8s describe pod ![Image](https://github.com/user-attachments/assets/4bcf0e6b-a51d-4cec-a3ea-f2baa927804c)
+k8s execute pod ![Image](https://github.com/user-attachments/assets/1bdd8a0f-a7b6-41fc-b476-ea858d1692de)
+Loadbalancer URL ![Image](https://github.com/user-attachments/assets/ebc6ad9f-1605-48f2-a7d3-44ae380a03fa)
+Test Validation ![Image](https://github.com/user-attachments/assets/81641a20-850f-45d2-b2bc-bdc856fd018f)
+Jenkins pipeline ![Image](https://github.com/user-attachments/assets/e472c81c-fe04-451f-b0bc-6c567dfbb0a1)
+Post Deployment ![Image](https://github.com/user-attachments/assets/9433d093-fca2-41b4-b7eb-a0c52675d4eb)
