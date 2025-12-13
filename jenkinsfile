@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+    
+    environment {
+        AWS_REGION = 'us-west-2'
+        AWS_ACCOUNT_ID = '975050024946'
+        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/flask-eks-demo-app"
+        CLUSTER_NAME = 'flask-eks-cluster'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checking out code..."
+                checkout scm
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                echo "Running tests..."
+                sh '''
+                    cd app
+                    python3 -m pip install --user -r requirements.txt
+                    python3 -m unittest discover -s tests -v
+                '''
+            }
+        }
+        
+        stage('Build & Push') {
+            steps {
+                echo "Building and pushing Docker image..."
+                sh '''
+                    # Build image
+                    docker build -t flask-app:${IMAGE_TAG} .
+                    docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                    docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:latest
+                    
+                    # Login to ECR
+                    aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REPO}
+                    
+                    # Push to ECR
+                    docker push ${ECR_REPO}:${IMAGE_TAG}
+                    docker push ${ECR_REPO}:latest
+                '''
+            }
+        }
+        
+        stage('Deploy to EKS') {
+            steps {
+                echo "Deploying to EKS..."
+                sh '''
+                    # Configure kubectl
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
+                    
+                    # Update image in deployment
+                    kubectl set image deployment/flask-app \
+                        flask-app=${ECR_REPO}:${IMAGE_TAG} || \
+                    kubectl apply -f k8s/deployment.yaml
+                    
+                    # Wait for rollout
+                    kubectl rollout status deployment/flask-app --timeout=5m
+                '''
+            }
+        }
+        
+        stage('Verify') {
+            steps {
+                echo "Verifying deployment..."
+                sh '''
+                    kubectl get deployments
+                    kubectl get pods
+                    kubectl get services
+                    
+                    # Get LoadBalancer URL
+                    echo "Application URL:"
+                    kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+                    echo ""
+                '''
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Deployment successful!"
+        }
+        failure {
+            echo "Deployment failed!"
+            sh 'kubectl describe deployment/flask-app || true'
+        }
+    }
+}
