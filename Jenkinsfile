@@ -1,127 +1,119 @@
 pipeline {
     agent any
-    
+
     environment {
-        AWS_REGION = 'us-west-2'
+        AWS_REGION     = 'us-west-2'
         AWS_ACCOUNT_ID = '975050024946'
-        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/flask-eks-demo-app"
-        CLUSTER_NAME = 'flask-eks-cluster'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        ECR_REPO       = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/flask-eks-demo-app"
+        CLUSTER_NAME   = 'flask-eks-cluster'
+        IMAGE_TAG      = "${BUILD_NUMBER}"
     }
-    
+
     options {
         timestamps()
         timeout(time: 30, unit: 'MINUTES')
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    echo "=== Stage 1: Checking out code from GitHub ==="
-                }
+                script { echo '=== Stage 1: Checking out code from GitHub ===' }
                 checkout scm
-                echo "Code checkout completed"
+                echo 'Code checkout completed'
             }
         }
-        
+
         stage('Test') {
             steps {
-                script {
-                    echo "=== Stage 2: Running unit tests ==="
-                }
+                script { echo '=== Stage 2: Running unit tests ===' }
                 sh '''
                     cd app
                     python3 -m pip install --upgrade --user pip
-		    python3 -m pip install --user -r requirements.txt
+                    python3 -m pip install --user -r requirements.txt
                     python3 -m unittest discover -s tests -v
                 '''
-                echo "Tests completed successfully"
+                echo 'Tests completed successfully'
             }
         }
-        
+
         stage('Build & Push') {
             steps {
-                script {
-                    echo "=== Stage 3: Building and pushing Docker image ==="
-                }
+                script { echo '=== Stage 3: Building and pushing Docker image ===' }
                 sh '''
-                    # Build image
-                    docker build -t flask-app:${IMAGE_TAG} .
+                    # build from Dockerfile inside app/
+                    docker build -t flask-app:${IMAGE_TAG} -f app/Dockerfile app
+
+                    # tag images
                     docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
                     docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:latest
-                    
-                    # Login to ECR
+
+                    # ECR login & push
                     aws ecr get-login-password --region ${AWS_REGION} | \
                         docker login --username AWS --password-stdin ${ECR_REPO}
-                    
-                    # Push to ECR
+
                     docker push ${ECR_REPO}:${IMAGE_TAG}
                     docker push ${ECR_REPO}:latest
                 '''
-                echo "Docker image built and pushed successfully"
+                echo 'Docker image built and pushed successfully'
             }
         }
-        
+
         stage('Deploy to EKS') {
             steps {
-                script {
-                    echo "=== Stage 4: Deploying to EKS cluster ==="
-                }
+                script { echo '=== Stage 4: Deploying to EKS cluster ===' }
                 sh '''
-                    # Configure kubectl
                     aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
-                    
-                    # Update image in deployment
+
+                    # update deployment image
                     kubectl set image deployment/flask-app \
                         flask-app=${ECR_REPO}:${IMAGE_TAG} || \
                     kubectl apply -f k8s/deployment.yaml
-                    
-                    # Wait for rollout
+
+                    # wait for rollout
                     kubectl rollout status deployment/flask-app --timeout=5m
                 '''
-                echo "Deployment to EKS completed"
+                echo 'Deployment to EKS completed'
             }
         }
-        
+
         stage('Verify') {
             steps {
-                script {
-                    echo "=== Stage 5: Verifying deployment ==="
-                }
+                script { echo '=== Stage 5: Verifying deployment ===' }
                 sh '''
                     kubectl get deployments
                     kubectl get pods
                     kubectl get services
-                    
-                    # Get LoadBalancer URL
+
                     echo "========================================="
                     echo "Application URL:"
-                    kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+                    kubectl get service flask-app-service \
+                        -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
                     echo ""
                     echo "========================================="
                 '''
-                echo "Verification completed successfully"
+                echo 'Verification completed successfully'
             }
         }
     }
-    
+
     post {
         success {
-            echo "========================================="
-            echo "✅ DEPLOYMENT SUCCESSFUL!"
-            echo "========================================="
+            echo '========================================='
+            echo '✅ DEPLOYMENT SUCCESSFUL!'
+            echo '========================================='
             script {
                 sh '''
-                    LB_URL=$(kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "LoadBalancer URL not ready yet")
+                    LB_URL=$(kubectl get service flask-app-service \
+                        -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null \
+                        || echo "LoadBalancer URL not ready yet")
                     echo "Application accessible at: http://${LB_URL}"
                 '''
             }
         }
         failure {
-            echo "========================================="
-            echo "❌ PIPELINE FAILED!"
-            echo "========================================="
+            echo '========================================='
+            echo '❌ PIPELINE FAILED!'
+            echo '========================================='
             sh '''
                 echo "Deployment logs:"
                 kubectl describe deployment/flask-app || true
@@ -134,4 +126,4 @@ pipeline {
             echo "Pipeline execution completed at: ${new Date()}"
         }
     }
-}
+}        
