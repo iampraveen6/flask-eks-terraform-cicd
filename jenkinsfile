@@ -1,136 +1,91 @@
+Here is the **same simplified file** you just received, but with the **post-build section added back** (success / failure / always blocks) so you still get the basic notifications and clean-up without the non-existent `publishTestResults` step.
+
+```groovy
 pipeline {
     agent any
-    
+
     environment {
-        AWS_REGION = 'us-west-2'
+        AWS_REGION     = 'us-west-2'
         AWS_ACCOUNT_ID = '975050024946'
-        ECR_REPO = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/flask-eks-demo-app"
-        CLUSTER_NAME = 'flask-eks-cluster'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        ECR_REPO       = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/flask-eks-demo-app"
+        CLUSTER_NAME   = 'flask-eks-cluster'
+        IMAGE_TAG      = "${BUILD_NUMBER}"
     }
-    
+
     options {
         timestamps()
         timeout(time: 30, unit: 'MINUTES')
     }
-    
+
     stages {
         stage('Checkout') {
             steps {
-                script {
-                    echo "=== Stage 1: Checking out code from GitHub ==="
-                }
                 checkout scm
-                echo "Code checkout completed"
             }
         }
-        
+
         stage('Test') {
             steps {
-                script {
-                    echo "=== Stage 2: Running unit tests ==="
-                }
                 sh '''
                     cd app
                     python3 -m pip install --user -r requirements.txt
                     python3 -m unittest discover -s tests -v
                 '''
-                echo "Tests completed successfully"
             }
         }
-        
+
         stage('Build & Push') {
             steps {
-                script {
-                    echo "=== Stage 3: Building and pushing Docker image ==="
+                withAWS(credentials: 'jenkins-aws-credentials', region: env.AWS_REGION) {
+                    sh '''
+                        docker build -t flask-app:${IMAGE_TAG} -f app/Dockerfile app
+                        docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
+                        aws ecr get-login-password | docker login --username AWS --password-stdin ${ECR_REPO}
+                        docker push ${ECR_REPO}:${IMAGE_TAG}
+                    '''
                 }
-                sh '''
-                    # Build image
-                    docker build -t flask-app:${IMAGE_TAG} .
-                    docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:${IMAGE_TAG}
-                    docker tag flask-app:${IMAGE_TAG} ${ECR_REPO}:latest
-                    
-                    # Login to ECR
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${ECR_REPO}
-                    
-                    # Push to ECR
-                    docker push ${ECR_REPO}:${IMAGE_TAG}
-                    docker push ${ECR_REPO}:latest
-                '''
-                echo "Docker image built and pushed successfully"
             }
         }
-        
-        stage('Deploy to EKS') {
+
+        stage('Deploy') {
             steps {
-                script {
-                    echo "=== Stage 4: Deploying to EKS cluster ==="
+                withAWS(credentials: 'jenkins-aws-credentials', region: env.AWS_REGION) {
+                    sh '''
+                        aws eks update-kubeconfig --name ${CLUSTER_NAME}
+                        kubectl set image deployment/flask-app flask-app=${ECR_REPO}:${IMAGE_TAG}
+                        kubectl rollout status deployment/flask-app --timeout=5m
+                    '''
                 }
-                sh '''
-                    # Configure kubectl
-                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
-                    
-                    # Update image in deployment
-                    kubectl set image deployment/flask-app \
-                        flask-app=${ECR_REPO}:${IMAGE_TAG} || \
-                    kubectl apply -f k8s/deployment.yaml
-                    
-                    # Wait for rollout
-                    kubectl rollout status deployment/flask-app --timeout=5m
-                '''
-                echo "Deployment to EKS completed"
-            }
-        }
-        
-        stage('Verify') {
-            steps {
-                script {
-                    echo "=== Stage 5: Verifying deployment ==="
-                }
-                sh '''
-                    kubectl get deployments
-                    kubectl get pods
-                    kubectl get services
-                    
-                    # Get LoadBalancer URL
-                    echo "========================================="
-                    echo "Application URL:"
-                    kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-                    echo ""
-                    echo "========================================="
-                '''
-                echo "Verification completed successfully"
             }
         }
     }
-    
+
     post {
         success {
-            echo "========================================="
-            echo "✅ DEPLOYMENT SUCCESSFUL!"
-            echo "========================================="
+            echo '✅ DEPLOYMENT SUCCESSFUL'
             script {
-                sh '''
-                    LB_URL=$(kubectl get service flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "LoadBalancer URL not ready yet")
-                    echo "Application accessible at: http://${LB_URL}"
-                '''
+                withAWS(credentials: 'jenkins-aws-credentials', region: env.AWS_REGION) {
+                    def url = sh(
+                        script: "kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true",
+                        returnStdout: true
+                    ).trim()
+                    if (url) echo "Application URL: http://${url}"
+                }
             }
         }
         failure {
-            echo "========================================="
-            echo "❌ PIPELINE FAILED!"
-            echo "========================================="
-            sh '''
-                echo "Deployment logs:"
-                kubectl describe deployment/flask-app || true
-                echo ""
-                echo "Pod logs:"
-                kubectl logs -l app=flask-app --tail=50 || true
-            '''
+            echo '❌ PIPELINE FAILED'
+            withAWS(credentials: 'jenkins-aws-credentials', region: env.AWS_REGION) {
+                sh '''
+                    kubectl describe deployment/flask-app || true
+                    kubectl logs -l app=flask-app --tail=30 || true
+                '''
+            }
         }
         always {
-            echo "Pipeline execution completed at: ${new Date()}"
+            echo "Pipeline finished at: ${new Date()}"
+            cleanWs()
         }
     }
 }
+```
