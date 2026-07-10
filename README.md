@@ -9,7 +9,18 @@ Complete CI/CD pipeline deploying a Flask application to AWS EKS using Terraform
 | **Tech stack** | Flask, Python, Docker, AWS EKS, ECR, Terraform, Jenkins, Kubernetes, LoadBalancer. |
 | **Key outcomes** | Automated infrastructure, containerized deployments, spot-instance cost savings, and clean teardown. |
 
+[![CI/CD](https://img.shields.io/badge/CI/CD-Jenkins-blue?logo=jenkins)](https://www.jenkins.io/)
+
 ## 📋 Architecture
+
+```mermaid
+graph LR
+  GitHub[GitHub] --> Jenkins[Jenkins]
+  Jenkins --> Docker[Docker Build]
+  Docker --> ECR[AWS ECR]
+  ECR --> EKS[EKS Cluster]
+  EKS --> LB[LoadBalancer]
+```
 
 ```
 GitHub → Jenkins → Docker → AWS ECR → EKS Cluster → LoadBalancer
@@ -408,6 +419,10 @@ If you encounter issues:
 
 ---
 
+## Deployment
+
+This project is deployed into your own AWS account using Terraform for infrastructure and Jenkins for CI/CD. Follow the [step-by-step guide](#step-by-step-implementation) to provision EKS, build the container image, and deploy the Flask app.
+
 ## 🎉 Success Criteria
 
 ✅ Terraform creates all infrastructure  
@@ -424,7 +439,10 @@ If you encounter issues:
 **Difficulty:** Medium  
 **Impact:** High
 
-Screenshot
+## 📸 Screenshots
+
+The following screenshots show the pipeline from local development through EKS deployment and validation.
+
 Local Validation ![Image](https://github.com/user-attachments/assets/6531cc7f-5eb9-4dee-bdbb-ccc756016e55)
 Terraform Plan ![Image](https://github.com/user-attachments/assets/e729f52d-0cb7-47b2-8c52-a55fac536a20)
 Terraform show ![Image](https://github.com/user-attachments/assets/679c8669-cfe8-4629-8e9f-22afbc1b840d)
