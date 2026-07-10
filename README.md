@@ -2,6 +2,13 @@
 
 Complete CI/CD pipeline deploying a Flask application to AWS EKS using Terraform and Jenkins.
 
+| Project Snapshot | |
+|---|---|
+| **What it is** | A production-style pipeline that provisions AWS EKS with Terraform, builds Docker images, and deploys via Jenkins. |
+| **Why it matters** | Demonstrates end-to-end AWS DevOps: IaC, containerization, Kubernetes, CI/CD, and cost optimization. |
+| **Tech stack** | Flask, Python, Docker, AWS EKS, ECR, Terraform, Jenkins, Kubernetes, LoadBalancer. |
+| **Key outcomes** | Automated infrastructure, containerized deployments, spot-instance cost savings, and clean teardown. |
+
 ## 📋 Architecture
 
 ```
